@@ -8,8 +8,11 @@ import com.gtnewhorizon.gtnhmixins.builders.MixinBuilder;
 
 public enum Mixins implements IMixins {
 
+    FORGE(new MixinBuilder().addClientMixins("forge.AccessorForgeHooksClient")
+        .setPhase(Phase.EARLY)),
+
     WAILA(new MixinBuilder("Waila").addRequiredMod(Mods.Waila)
-        .addClientMixins("waila.OverlayRendererMixin", "waila.TooltipAccessor", "waila.TooltipRenderableAccessor")
+        .addClientMixins("waila.MixinOverlayRenderer", "waila.AccessorTooltip", "waila.AccessorTooltipRenderable")
         .setPhase(Phase.LATE));
 
     private final MixinBuilder builder;

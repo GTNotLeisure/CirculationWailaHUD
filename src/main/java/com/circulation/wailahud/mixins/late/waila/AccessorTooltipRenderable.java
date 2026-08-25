@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 import mcp.mobius.waila.api.IWailaCommonAccessor;
 
 @Mixin(targets = "mcp.mobius.waila.overlay.Tooltip$Renderable", remap = false)
-public interface TooltipRenderableAccessor {
+public interface AccessorTooltipRenderable {
 
     @Accessor("pos")
     Point circulationWailaHud$getPosition();

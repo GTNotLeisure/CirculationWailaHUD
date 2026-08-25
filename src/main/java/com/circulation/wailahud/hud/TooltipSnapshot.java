@@ -7,7 +7,7 @@ import java.util.List;
 
 import net.minecraft.item.ItemStack;
 
-import com.circulation.wailahud.mixins.late.waila.TooltipAccessor;
+import com.circulation.wailahud.mixins.late.waila.AccessorTooltip;
 
 import mcp.mobius.waila.api.SpecialChars;
 import mcp.mobius.waila.overlay.Tooltip;
@@ -15,7 +15,7 @@ import mcp.mobius.waila.overlay.Tooltip;
 public record TooltipSnapshot(List<String> lines, ItemStack stack, boolean hasIcon, Point anchor) {
 
     public static TooltipSnapshot from(Tooltip tooltip) {
-        TooltipAccessor accessor = (TooltipAccessor) tooltip;
+        AccessorTooltip accessor = (AccessorTooltip) tooltip;
         List<String> lines = new ArrayList<>();
 
         for (ArrayList<String> columns : accessor.circulationWailaHud$getLines()) {

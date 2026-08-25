@@ -11,7 +11,7 @@ import mcp.mobius.waila.overlay.OverlayRenderer;
 import mcp.mobius.waila.overlay.Tooltip;
 
 @Mixin(value = OverlayRenderer.class, remap = false, priority = 2000)
-public class OverlayRendererMixin {
+public class MixinOverlayRenderer {
 
     @Inject(method = "renderOverlay", at = @At("HEAD"), cancellable = true)
     private static void circulationWailaHud$render(Tooltip tooltip, CallbackInfo callbackInfo) {

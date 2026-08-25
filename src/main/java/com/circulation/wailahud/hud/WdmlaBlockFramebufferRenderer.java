@@ -17,6 +17,7 @@ import org.lwjgl.opengl.GL12;
 import org.lwjgl.util.glu.GLU;
 
 import com.circulation.wailahud.CirculationWailaHud;
+import com.circulation.wailahud.mixins.early.forge.AccessorForgeHooksClient;
 import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.CustomFramebuffer;
 
 public class WdmlaBlockFramebufferRenderer {
@@ -26,6 +27,7 @@ public class WdmlaBlockFramebufferRenderer {
     private static final float INITIAL_CAMERA_PITCH = 30.0F;
     private static final float FIELD_OF_VIEW = 60.0F;
     private static final int CLIENT_ATTRIBUTE_BITS = 0xFFFFFFFF;
+    private static final int MAX_FRAMEBUFFER_DIMENSION = 4096;
 
     private final RenderBlocks renderBlocks = new RenderBlocks();
     private final WorldRenderState worldRenderState = new WorldRenderState();
@@ -43,6 +45,7 @@ public class WdmlaBlockFramebufferRenderer {
         Block block = minecraft.theWorld.getBlock(target.blockX, target.blockY, target.blockZ);
         if (block == null || block == Blocks.air) return 0;
 
+        int savedWorldRenderPass = ForgeHooksClient.getWorldRenderPass();
         worldRenderState.capture();
         GL11.glPushClientAttrib(CLIENT_ATTRIBUTE_BITS);
         boolean projectionPushed = false;
@@ -59,6 +62,7 @@ public class WdmlaBlockFramebufferRenderer {
             return framebuffer.framebufferTexture;
         } finally {
             ForgeHooksClient.setRenderPass(-1);
+            AccessorForgeHooksClient.circulationWailaHud$setWorldRenderPass(savedWorldRenderPass);
             if (modelViewPushed) {
                 GL11.glMatrixMode(GL11.GL_MODELVIEW);
                 GL11.glPopMatrix();
@@ -80,8 +84,8 @@ public class WdmlaBlockFramebufferRenderer {
     }
 
     private void ensureFramebuffer(int requestedWidth, int requestedHeight) {
-        int width = Math.max(1, requestedWidth);
-        int height = Math.max(1, requestedHeight);
+        int width = Math.min(MAX_FRAMEBUFFER_DIMENSION, Math.max(1, requestedWidth));
+        int height = Math.min(MAX_FRAMEBUFFER_DIMENSION, Math.max(1, requestedHeight));
         if (framebuffer != null && framebufferWidth == width && framebufferHeight == height) return;
 
         clear();
@@ -145,28 +149,38 @@ public class WdmlaBlockFramebufferRenderer {
 
     private boolean renderBlockPasses(Minecraft minecraft, Block block, int blockX, int blockY, int blockZ) {
         int savedAmbientOcclusion = minecraft.gameSettings.ambientOcclusion;
-        boolean savedRenderAllFaces = renderBlocks.renderAllFaces;
-        Tessellator tessellator = Tessellator.instance;
         boolean rendered = false;
         minecraft.gameSettings.ambientOcclusion = 0;
-        tessellator.startDrawingQuads();
         try {
-            tessellator.setBrightness(15 << 20 | 15 << 4);
             for (int pass = 0; pass < 2; pass++) {
-                if (!block.canRenderInPass(pass)) continue;
-                ForgeHooksClient.setRenderPass(pass);
-                renderBlocks.blockAccess = minecraft.theWorld;
-                renderBlocks.setRenderBounds(0.0D, 0.0D, 0.0D, 1.0D, 1.0D, 1.0D);
-                renderBlocks.renderAllFaces = true;
-                rendered |= renderBlocks.renderBlockByRenderType(block, blockX, blockY, blockZ);
+                rendered |= renderBlockPass(minecraft, block, blockX, blockY, blockZ, pass);
             }
         } finally {
             minecraft.gameSettings.ambientOcclusion = savedAmbientOcclusion;
+        }
+        return rendered;
+    }
+
+    private boolean renderBlockPass(Minecraft minecraft, Block block, int blockX, int blockY, int blockZ, int pass) {
+        if (!block.canRenderInPass(pass)) return false;
+
+        ForgeHooksClient.setRenderPass(pass);
+        AccessorForgeHooksClient.circulationWailaHud$setWorldRenderPass(pass);
+        setDefaultPassRenderState(pass);
+        Tessellator tessellator = Tessellator.instance;
+        boolean savedRenderAllFaces = renderBlocks.renderAllFaces;
+        tessellator.startDrawingQuads();
+        try {
+            tessellator.setBrightness(15 << 20 | 15 << 4);
+            renderBlocks.blockAccess = minecraft.theWorld;
+            renderBlocks.setRenderBounds(0.0D, 0.0D, 0.0D, 1.0D, 1.0D, 1.0D);
+            renderBlocks.renderAllFaces = true;
+            return renderBlocks.renderBlockByRenderType(block, blockX, blockY, blockZ);
+        } finally {
             renderBlocks.renderAllFaces = savedRenderAllFaces;
             tessellator.draw();
             tessellator.setTranslation(0.0D, 0.0D, 0.0D);
         }
-        return rendered;
     }
 
     private boolean renderTileEntityPasses(Minecraft minecraft, int blockX, int blockY, int blockZ) {
@@ -177,6 +191,7 @@ public class WdmlaBlockFramebufferRenderer {
         boolean rendered = false;
         for (int pass = 0; pass < 2; pass++) {
             ForgeHooksClient.setRenderPass(pass);
+            AccessorForgeHooksClient.circulationWailaHud$setWorldRenderPass(pass);
             setDefaultPassRenderState(pass);
             if (tileEntity.shouldRenderInPass(pass)) {
                 dispatcher.renderTileEntityAt(tileEntity, blockX, blockY, blockZ, 0.0F);

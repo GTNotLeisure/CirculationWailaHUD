@@ -29,7 +29,7 @@ public class HudLayoutEngine {
         }
 
         if (pages.isEmpty()) {
-            pages.add(rowRenderer.createPage(Collections.<String>emptyList()));
+            pages.add(rowRenderer.createPage(Collections.emptyList()));
         }
 
         int contentWidth = resolveContentWidth(pages, theme, settings);

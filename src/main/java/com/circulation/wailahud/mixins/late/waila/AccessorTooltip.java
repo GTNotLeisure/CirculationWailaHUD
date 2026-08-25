@@ -13,7 +13,7 @@ import mcp.mobius.waila.api.IWailaCommonAccessor;
 import mcp.mobius.waila.overlay.Tooltip;
 
 @Mixin(value = Tooltip.class, remap = false)
-public interface TooltipAccessor {
+public interface AccessorTooltip {
 
     @Accessor("lines")
     ArrayList<ArrayList<String>> circulationWailaHud$getLines();

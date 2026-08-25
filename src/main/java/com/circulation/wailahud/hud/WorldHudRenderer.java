@@ -42,6 +42,8 @@ public class WorldHudRenderer {
     private static final int LEFT_FILL_TRANSITION_COLOR = 0x801C222E;
     private static final float ICON_ANCHOR_SIZE = 16.0F;
     private static final float MODEL_VIEWPORT_SIZE = 48.0F;
+    private static final int MODEL_RESOLUTION_STEP = 16;
+    private static final int MAX_MODEL_RENDER_RESOLUTION = 4096;
 
     private final HudScrollAnimation scrollAnimation = new HudScrollAnimation();
     private final WailaRowRenderer rowRenderer = new WailaRowRenderer();
@@ -321,7 +323,8 @@ public class WorldHudRenderer {
         float size = MODEL_VIEWPORT_SIZE;
         float x = theme.iconX() + 17.0F - (size - ICON_ANCHOR_SIZE) / 2.0F;
         float y = height / 2.0F - 8.0F - (size - ICON_ANCHOR_SIZE) / 2.0F;
-        int texture = blockRenderer.render(target, Math.round(size), Math.round(size), ticks);
+        projectIcon(x, y, size);
+        int texture = blockRenderer.render(target, projectedIconWidth(), projectedIconHeight(), ticks);
         if (texture == 0) return;
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
         drawTexturedQuad(x, y, size, size, 0.0F, 1.0F, 1.0F, 0.0F, 1.0F);
@@ -329,6 +332,48 @@ public class WorldHudRenderer {
 
     public void clear() {
         blockRenderer.clear();
+    }
+
+    private int projectedIconWidth() {
+        return boundedProjectedExtent(0, viewport[2]);
+    }
+
+    private int projectedIconHeight() {
+        return boundedProjectedExtent(1, viewport[3]);
+    }
+
+    private int boundedProjectedExtent(int coordinateOffset, int viewportExtent) {
+        float first = projectedCorners[coordinateOffset];
+        float second = projectedCorners[coordinateOffset + 2];
+        float third = projectedCorners[coordinateOffset + 4];
+        float fourth = projectedCorners[coordinateOffset + 6];
+        if (!isFinite(first) || !isFinite(second) || !isFinite(third) || !isFinite(fourth)) {
+            return Math.round(MODEL_VIEWPORT_SIZE);
+        }
+        float minimum = Math.min(Math.min(first, second), Math.min(third, fourth));
+        float maximum = Math.max(Math.max(first, second), Math.max(third, fourth));
+        float extent = maximum - minimum;
+        if (!isFinite(extent)) return Math.round(MODEL_VIEWPORT_SIZE);
+        int minimumResolution = Math.round(MODEL_VIEWPORT_SIZE);
+        int maximumResolution = Math.max(minimumResolution, Math.min(MAX_MODEL_RENDER_RESOLUTION, viewportExtent));
+        int requestedResolution = Math.min(maximumResolution, Math.max(minimumResolution, Math.round(extent)));
+        return Math.min(maximumResolution, roundUpToResolutionStep(requestedResolution));
+    }
+
+    private boolean isFinite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
+    }
+
+    private int roundUpToResolutionStep(int value) {
+        int remainder = value % MODEL_RESOLUTION_STEP;
+        return remainder == 0 ? value : value + MODEL_RESOLUTION_STEP - remainder;
+    }
+
+    private void projectIcon(float x, float y, float size) {
+        project(x, y, 0);
+        project(x + size, y, 2);
+        project(x + size, y + size, 4);
+        project(x, y + size, 6);
     }
 
     private void drawNavigation(HudLayout layout, HudPage page, HudTheme theme) {
