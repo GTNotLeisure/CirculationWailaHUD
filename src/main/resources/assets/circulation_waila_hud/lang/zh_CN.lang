@@ -1,0 +1,18 @@
+key.categories.circulation_waila_hud=Circulation Waila HUD
+key.circulation_waila_hud.next_page=Waila HUD 下一页
+
+circulation_waila_hud.navigation.page=第 %s/%s 页 [%s]
+
+circulation_waila_hud.config.hud=HUD
+circulation_waila_hud.config.hud.enabled=启用自定义 HUD
+circulation_waila_hud.config.hud.enabled.tooltip=使用 Circulation Waila HUD 渲染器。
+circulation_waila_hud.config.hud.contentwidth=内容宽度
+circulation_waila_hud.config.hud.contentwidth.tooltip=以本地面板像素表示的内容区域宽度，超宽行会横向滚动。
+circulation_waila_hud.config.hud.maxlinesperpage=每页最大行数
+circulation_waila_hud.config.hud.maxlinesperpage.tooltip=每页显示的最大原始 Waila 行数。
+circulation_waila_hud.config.hud.offsetx=水平偏移
+circulation_waila_hud.config.hud.offsetx.tooltip=以本地面板像素表示的水平偏移。
+circulation_waila_hud.config.hud.offsety=垂直偏移
+circulation_waila_hud.config.hud.offsety.tooltip=以本地面板像素表示的垂直偏移。
+circulation_waila_hud.config.hud.scale=HUD 缩放
+circulation_waila_hud.config.hud.scale.tooltip=HUD 缩放比例。

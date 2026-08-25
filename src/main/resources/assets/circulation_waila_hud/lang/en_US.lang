@@ -1,0 +1,18 @@
+key.categories.circulation_waila_hud=Circulation Waila HUD
+key.circulation_waila_hud.next_page=Next Waila HUD Page
+
+circulation_waila_hud.navigation.page=Page %s/%s [%s]
+
+circulation_waila_hud.config.hud=HUD
+circulation_waila_hud.config.hud.enabled=Enable Custom HUD
+circulation_waila_hud.config.hud.enabled.tooltip=Use the Circulation Waila HUD renderer.
+circulation_waila_hud.config.hud.contentwidth=Content Width
+circulation_waila_hud.config.hud.contentwidth.tooltip=Content viewport width in local panel pixels. Wider rows scroll horizontally.
+circulation_waila_hud.config.hud.maxlinesperpage=Maximum Lines Per Page
+circulation_waila_hud.config.hud.maxlinesperpage.tooltip=Maximum original Waila lines displayed on one page.
+circulation_waila_hud.config.hud.offsetx=Horizontal Offset
+circulation_waila_hud.config.hud.offsetx.tooltip=Horizontal offset in local panel pixels.
+circulation_waila_hud.config.hud.offsety=Vertical Offset
+circulation_waila_hud.config.hud.offsety.tooltip=Vertical offset in local panel pixels.
+circulation_waila_hud.config.hud.scale=HUD Scale
+circulation_waila_hud.config.hud.scale.tooltip=HUD scale factor.

@@ -1,0 +1,21 @@
+{
+  "modListVersion": 2,
+  "modList": [
+    {
+      "modid": "${modId}",
+      "name": "${modName}",
+      "description": "A Circulation Flow Networks styled renderer for the Waila HUD.",
+      "version": "${modVersion}",
+      "mcversion": "${minecraftVersion}",
+      "url": "",
+      "updateUrl": "",
+      "authorList": [],
+      "credits": "",
+      "requiredMods": [
+        "Waila"
+      ],
+      "screenshots": [],
+      "parent": ""
+    }
+  ]
+}
