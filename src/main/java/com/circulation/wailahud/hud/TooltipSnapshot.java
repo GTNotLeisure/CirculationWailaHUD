@@ -30,10 +30,40 @@ public record TooltipSnapshot(List<String> lines, ItemStack stack, boolean hasIc
             new Point(anchor));
     }
 
+    public static int contentHash(Tooltip tooltip) {
+        AccessorTooltip accessor = (AccessorTooltip) tooltip;
+        int linesHash = 1;
+        for (ArrayList<String> columns : accessor.circulationWailaHud$getLines()) {
+            linesHash = 31 * linesHash + joinedLineHash(columns);
+        }
+        int hash = linesHash;
+        hash = 31 * hash + System.identityHashCode(accessor.circulationWailaHud$getStack());
+        hash = 31 * hash + Boolean.hashCode(accessor.circulationWailaHud$hasIcon());
+        return hash;
+    }
+
     public int contentHash() {
         int hash = lines.hashCode();
         hash = 31 * hash + System.identityHashCode(stack);
         hash = 31 * hash + Boolean.hashCode(hasIcon);
+        return hash;
+    }
+
+    private static int joinedLineHash(List<String> columns) {
+        int hash = 0;
+        boolean needsSeparator = false;
+        for (String column : columns) {
+            if (needsSeparator) hash = appendHash(hash, SpecialChars.TAB);
+            hash = appendHash(hash, String.valueOf(column));
+            needsSeparator = true;
+        }
+        return hash;
+    }
+
+    private static int appendHash(int hash, String value) {
+        for (int index = 0; index < value.length(); index++) {
+            hash = 31 * hash + value.charAt(index);
+        }
         return hash;
     }
 }

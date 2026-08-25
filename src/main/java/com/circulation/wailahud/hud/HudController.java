@@ -37,22 +37,18 @@ public class HudController {
         MovingObjectPosition target = RayTracing.instance()
             .getTarget();
         TargetKey currentTarget = TargetKey.create(target);
-        TooltipSnapshot tooltipSnapshot = TooltipSnapshot.from(tooltip);
+        int tooltipContentHash = TooltipSnapshot.contentHash(tooltip);
         HudSettings hudSettings = HudSettings.fromConfig(ModConfig.HUD);
         HudThemeProvider themeProvider = HudThemeProvider.instance();
         HudTheme hudTheme = themeProvider.current();
-        CacheKey newKey = new CacheKey(
-            tooltipSnapshot.contentHash(),
-            hudSettings,
-            themeProvider.generation(),
-            currentTarget);
+        CacheKey newKey = new CacheKey(tooltipContentHash, hudSettings, themeProvider.generation(), currentTarget);
         if (!newKey.equals(cacheKey)) {
-            layout = layoutEngine.layout(tooltipSnapshot, hudTheme, hudSettings);
+            snapshot = TooltipSnapshot.from(tooltip);
+            layout = layoutEngine.layout(snapshot, hudTheme, hudSettings);
             cacheKey = newKey;
             pageIndex = 0;
         }
         if (layout == null) return false;
-        snapshot = tooltipSnapshot;
         settings = hudSettings;
         theme = hudTheme;
         targetKey = currentTarget;

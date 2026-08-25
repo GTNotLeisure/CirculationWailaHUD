@@ -10,6 +10,7 @@ import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.init.Blocks;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.world.World;
 import net.minecraftforge.client.ForgeHooksClient;
 
 import org.lwjgl.opengl.GL11;
@@ -37,6 +38,14 @@ public class WdmlaBlockFramebufferRenderer {
     private float cameraPitch = INITIAL_CAMERA_PITCH;
     private long lastRotationTick;
     private String lastEmptyRenderTarget;
+    private World cachedWorld;
+    private Block cachedBlock;
+    private int cachedBlockX;
+    private int cachedBlockY;
+    private int cachedBlockZ;
+    private int cachedWidth;
+    private int cachedHeight;
+    private long cachedTick = Long.MIN_VALUE;
 
     public int render(MovingObjectPosition target, int width, int height, long ticks) {
         Minecraft minecraft = Minecraft.getMinecraft();
@@ -44,6 +53,11 @@ public class WdmlaBlockFramebufferRenderer {
 
         Block block = minecraft.theWorld.getBlock(target.blockX, target.blockY, target.blockZ);
         if (block == null || block == Blocks.air) return 0;
+        int framebufferWidth = normalizeFramebufferDimension(width);
+        int framebufferHeight = normalizeFramebufferDimension(height);
+        if (canReuseFramebuffer(minecraft.theWorld, block, target, framebufferWidth, framebufferHeight, ticks)) {
+            return framebuffer.framebufferTexture;
+        }
 
         int savedWorldRenderPass = ForgeHooksClient.getWorldRenderPass();
         worldRenderState.capture();
@@ -51,7 +65,7 @@ public class WdmlaBlockFramebufferRenderer {
         boolean projectionPushed = false;
         boolean modelViewPushed = false;
         try {
-            ensureFramebuffer(width, height);
+            ensureFramebuffer(framebufferWidth, framebufferHeight);
             if (framebuffer == null) return 0;
             framebuffer.clearBindFramebuffer(true);
             setupCamera(target, ticks);
@@ -59,6 +73,7 @@ public class WdmlaBlockFramebufferRenderer {
             modelViewPushed = true;
             RenderResult result = drawWorld(minecraft, block, target.blockX, target.blockY, target.blockZ);
             logEmptyRender(target, block, result);
+            cacheFramebuffer(minecraft.theWorld, block, target, framebufferWidth, framebufferHeight, ticks);
             return framebuffer.framebufferTexture;
         } finally {
             ForgeHooksClient.setRenderPass(-1);
@@ -81,17 +96,49 @@ public class WdmlaBlockFramebufferRenderer {
         framebuffer = null;
         framebufferWidth = 0;
         framebufferHeight = 0;
+        cachedWorld = null;
+        cachedBlock = null;
+        cachedTick = Long.MIN_VALUE;
     }
 
     private void ensureFramebuffer(int requestedWidth, int requestedHeight) {
-        int width = Math.min(MAX_FRAMEBUFFER_DIMENSION, Math.max(1, requestedWidth));
-        int height = Math.min(MAX_FRAMEBUFFER_DIMENSION, Math.max(1, requestedHeight));
+        int width = normalizeFramebufferDimension(requestedWidth);
+        int height = normalizeFramebufferDimension(requestedHeight);
         if (framebuffer != null && framebufferWidth == width && framebufferHeight == height) return;
 
         clear();
         framebuffer = new CustomFramebuffer(width, height, CustomFramebuffer.DEPTH_ENABLED);
         framebufferWidth = width;
         framebufferHeight = height;
+    }
+
+    private int normalizeFramebufferDimension(int requestedDimension) {
+        return Math.min(MAX_FRAMEBUFFER_DIMENSION, Math.max(1, requestedDimension));
+    }
+
+    private boolean canReuseFramebuffer(World world, Block block, MovingObjectPosition target, int width, int height,
+        long ticks) {
+        return framebuffer != null && framebuffer.framebufferTexture != 0
+            && cachedWorld == world
+            && cachedBlock == block
+            && cachedBlockX == target.blockX
+            && cachedBlockY == target.blockY
+            && cachedBlockZ == target.blockZ
+            && cachedWidth == width
+            && cachedHeight == height
+            && cachedTick == ticks;
+    }
+
+    private void cacheFramebuffer(World world, Block block, MovingObjectPosition target, int width, int height,
+        long ticks) {
+        cachedWorld = world;
+        cachedBlock = block;
+        cachedBlockX = target.blockX;
+        cachedBlockY = target.blockY;
+        cachedBlockZ = target.blockZ;
+        cachedWidth = width;
+        cachedHeight = height;
+        cachedTick = ticks;
     }
 
     private void setupCamera(MovingObjectPosition target, long ticks) {
