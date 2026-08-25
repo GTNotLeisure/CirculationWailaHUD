@@ -191,11 +191,17 @@ public class WdmlaBlockFramebufferRenderer {
             lastEmptyRenderTarget = null;
             return;
         }
-        String targetKey = target.blockX + "," + target.blockY + "," + target.blockZ + ":" + block.getClass()
-            .getName();
+        String targetKey = target.blockX + ","
+            + target.blockY
+            + ","
+            + target.blockZ
+            + ":"
+            + block.getClass()
+                .getName();
         if (targetKey.equals(lastEmptyRenderTarget)) return;
         lastEmptyRenderTarget = targetKey;
-        CirculationWailaHud.LOG.warn("World HUD renderer produced no content for {} at {}", block.getUnlocalizedName(), targetKey);
+        CirculationWailaHud.LOG
+            .warn("World HUD renderer produced no content for {} at {}", block.getUnlocalizedName(), targetKey);
     }
 
     private void setDefaultPassRenderState(int pass) {

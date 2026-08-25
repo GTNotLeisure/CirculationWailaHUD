@@ -55,8 +55,8 @@ public class WorldHudRenderer {
     private final float[] projectedCorners = new float[8];
     private final int[] scissorBox = new int[4];
 
-    public void render(HudLayout layout, HudPage page, HudTheme theme, HudSettings settings, MovingObjectPosition target,
-        float partialTick, long ticks) {
+    public void render(HudLayout layout, HudPage page, HudTheme theme, HudSettings settings,
+        MovingObjectPosition target, float partialTick, long ticks) {
         if (target.hitVec == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
         Entity camera = minecraft.renderViewEntity;
@@ -225,37 +225,16 @@ public class WorldHudRenderer {
         }
         drawPanelBand(x, y, panelWidth, 0, PANEL_TOP_HEIGHT, PANEL_TOP_HEIGHT, alpha);
         int bodyY = PANEL_TOP_HEIGHT;
-        drawPanelBand(
-            x,
-            y + bodyY,
-            panelWidth,
-            PANEL_FIRST_ROW_SOURCE_Y,
-            PANEL_ROW_HEIGHT,
-            PANEL_ROW_HEIGHT,
-            alpha);
+        drawPanelBand(x, y + bodyY, panelWidth, PANEL_FIRST_ROW_SOURCE_Y, PANEL_ROW_HEIGHT, PANEL_ROW_HEIGHT, alpha);
         bodyY += PANEL_ROW_HEIGHT;
         int repeatedHeight = height - PANEL_TOP_HEIGHT - PANEL_ROW_HEIGHT * 2 - PANEL_BOTTOM_HEIGHT;
         while (repeatedHeight > 0) {
             int segmentHeight = Math.min(PANEL_ROW_HEIGHT, repeatedHeight);
-            drawPanelBand(
-                x,
-                y + bodyY,
-                panelWidth,
-                PANEL_REPEATED_ROW_SOURCE_Y,
-                segmentHeight,
-                segmentHeight,
-                alpha);
+            drawPanelBand(x, y + bodyY, panelWidth, PANEL_REPEATED_ROW_SOURCE_Y, segmentHeight, segmentHeight, alpha);
             bodyY += segmentHeight;
             repeatedHeight -= segmentHeight;
         }
-        drawPanelBand(
-            x,
-            y + bodyY,
-            panelWidth,
-            PANEL_LAST_ROW_SOURCE_Y,
-            PANEL_ROW_HEIGHT,
-            PANEL_ROW_HEIGHT,
-            alpha);
+        drawPanelBand(x, y + bodyY, panelWidth, PANEL_LAST_ROW_SOURCE_Y, PANEL_ROW_HEIGHT, PANEL_ROW_HEIGHT, alpha);
         drawPanelBand(
             x,
             y + height - PANEL_BOTTOM_HEIGHT,
