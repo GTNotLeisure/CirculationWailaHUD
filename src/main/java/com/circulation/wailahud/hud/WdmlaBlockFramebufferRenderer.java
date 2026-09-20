@@ -2,6 +2,7 @@ package com.circulation.wailahud.hud;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.Tessellator;
@@ -9,6 +10,7 @@ import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.init.Blocks;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.world.World;
 import net.minecraftforge.client.ForgeHooksClient;
@@ -18,20 +20,23 @@ import org.lwjgl.opengl.GL12;
 import org.lwjgl.util.glu.GLU;
 
 import com.circulation.wailahud.CirculationWailaHud;
+import com.circulation.wailahud.hud.BlockPreviewResolver.Preview;
 import com.circulation.wailahud.mixins.early.forge.AccessorForgeHooksClient;
 import com.gtnewhorizon.gtnhlib.client.renderer.postprocessing.CustomFramebuffer;
 
-public class WdmlaBlockFramebufferRenderer {
+public class WdmlaBlockFramebufferRenderer implements TargetPreviewRenderer {
 
     private static final float CAMERA_DISTANCE = 2.3F;
     private static final float CAMERA_YAW = 30.0F;
     private static final float INITIAL_CAMERA_PITCH = 30.0F;
     private static final float FIELD_OF_VIEW = 60.0F;
+    private static final double MODEL_MARGIN = 1.1D;
     private static final int CLIENT_ATTRIBUTE_BITS = 0xFFFFFFFF;
     private static final int MAX_FRAMEBUFFER_DIMENSION = 4096;
 
     private final RenderBlocks renderBlocks = new RenderBlocks();
     private final WorldRenderState worldRenderState = new WorldRenderState();
+    private final BlockPreviewResolver previewResolver = new BlockPreviewResolver();
     private CustomFramebuffer framebuffer;
     private int framebufferWidth;
     private int framebufferHeight;
@@ -47,9 +52,19 @@ public class WdmlaBlockFramebufferRenderer {
     private int cachedHeight;
     private long cachedTick = Long.MIN_VALUE;
 
+    @Override
+    public boolean supports(MovingObjectPosition target) {
+        return target != null && target.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK;
+    }
+
+    @Override
+    public int render(MovingObjectPosition target, int width, int height, long ticks, float partialTick) {
+        return render(target, width, height, ticks);
+    }
+
     public int render(MovingObjectPosition target, int width, int height, long ticks) {
         Minecraft minecraft = Minecraft.getMinecraft();
-        if (minecraft.theWorld == null || target.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return 0;
+        if (minecraft.theWorld == null || !supports(target)) return 0;
 
         Block block = minecraft.theWorld.getBlock(target.blockX, target.blockY, target.blockZ);
         if (block == null || block == Blocks.air) return 0;
@@ -58,6 +73,7 @@ public class WdmlaBlockFramebufferRenderer {
         if (canReuseFramebuffer(minecraft.theWorld, block, target, framebufferWidth, framebufferHeight, ticks)) {
             return framebuffer.framebufferTexture;
         }
+        Preview preview = previewResolver.resolve(minecraft.theWorld, target.blockX, target.blockY, target.blockZ);
 
         int savedWorldRenderPass = ForgeHooksClient.getWorldRenderPass();
         worldRenderState.capture();
@@ -65,13 +81,17 @@ public class WdmlaBlockFramebufferRenderer {
         boolean projectionPushed = false;
         boolean modelViewPushed = false;
         try {
+            OpenGlHelper.setActiveTexture(OpenGlHelper.defaultTexUnit);
             ensureFramebuffer(framebufferWidth, framebufferHeight);
             if (framebuffer == null) return 0;
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
+            GL11.glColorMask(true, true, true, true);
+            GL11.glDepthMask(true);
             framebuffer.clearBindFramebuffer(true);
-            setupCamera(target, ticks);
+            setupCamera(preview.bounds(), ticks);
             projectionPushed = true;
             modelViewPushed = true;
-            RenderResult result = drawWorld(minecraft, block, target.blockX, target.blockY, target.blockZ);
+            RenderResult result = drawWorld(minecraft, block, target, preview.tileEntity());
             logEmptyRender(target, block, result);
             cacheFramebuffer(minecraft.theWorld, block, target, framebufferWidth, framebufferHeight, ticks);
             return framebuffer.framebufferTexture;
@@ -91,6 +111,7 @@ public class WdmlaBlockFramebufferRenderer {
         }
     }
 
+    @Override
     public void clear() {
         if (framebuffer != null) framebuffer.checkDeleteFramebuffer();
         framebuffer = null;
@@ -107,7 +128,10 @@ public class WdmlaBlockFramebufferRenderer {
         if (framebuffer != null && framebufferWidth == width && framebufferHeight == height) return;
 
         clear();
-        framebuffer = new CustomFramebuffer(width, height, CustomFramebuffer.DEPTH_ENABLED);
+        // The depth-texture path avoids the invalid renderbuffer target in GTNHLib 0.11.48.
+        framebuffer = new CustomFramebuffer(width, height, CustomFramebuffer.DEPTH_TEXTURE);
+        framebuffer.bindFramebuffer();
+        framebuffer.checkFramebufferComplete();
         framebufferWidth = width;
         framebufferHeight = height;
     }
@@ -141,20 +165,21 @@ public class WdmlaBlockFramebufferRenderer {
         cachedTick = ticks;
     }
 
-    private void setupCamera(MovingObjectPosition target, long ticks) {
+    private void setupCamera(AxisAlignedBB bounds, long ticks) {
         updateCameraRotation(ticks);
-        float lookAtX = target.blockX + 0.5F;
-        float lookAtY = target.blockY + 0.5F;
-        float lookAtZ = target.blockZ + 0.5F;
+        float lookAtX = (float) ((bounds.minX + bounds.maxX) * 0.5D);
+        float lookAtY = (float) ((bounds.minY + bounds.maxY) * 0.5D);
+        float lookAtZ = (float) ((bounds.minZ + bounds.maxZ) * 0.5D);
+        float cameraDistance = cameraDistance(bounds);
         float pitchRadians = (float) Math.toRadians(cameraPitch);
         float yawRadians = (float) Math.toRadians(CAMERA_YAW);
         float rawEyeX = (float) Math.cos(pitchRadians);
         float rawEyeY = (float) Math.tan(yawRadians);
         float rawEyeZ = (float) Math.sin(pitchRadians);
         float eyeLength = (float) Math.sqrt(rawEyeX * rawEyeX + rawEyeY * rawEyeY + rawEyeZ * rawEyeZ);
-        float eyeX = lookAtX + rawEyeX / eyeLength * CAMERA_DISTANCE;
-        float eyeY = lookAtY + rawEyeY / eyeLength * CAMERA_DISTANCE;
-        float eyeZ = lookAtZ + rawEyeZ / eyeLength * CAMERA_DISTANCE;
+        float eyeX = lookAtX + rawEyeX / eyeLength * cameraDistance;
+        float eyeY = lookAtY + rawEyeY / eyeLength * cameraDistance;
+        float eyeZ = lookAtZ + rawEyeZ / eyeLength * cameraDistance;
 
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
@@ -169,12 +194,23 @@ public class WdmlaBlockFramebufferRenderer {
         GLU.gluLookAt(eyeX, eyeY, eyeZ, lookAtX, lookAtY, lookAtZ, 0.0F, 1.0F, 0.0F);
     }
 
+    private float cameraDistance(AxisAlignedBB bounds) {
+        double width = bounds.maxX - bounds.minX;
+        double height = bounds.maxY - bounds.minY;
+        double depth = bounds.maxZ - bounds.minZ;
+        double radius = Math.sqrt(width * width + height * height + depth * depth) * 0.5D;
+        double aspect = framebufferWidth / (double) framebufferHeight;
+        double limitingHalfFov = Math.atan(Math.tan(Math.toRadians(FIELD_OF_VIEW * 0.5D)) * Math.min(1.0D, aspect));
+        return (float) Math.max(CAMERA_DISTANCE, radius * MODEL_MARGIN / Math.sin(limitingHalfFov));
+    }
+
     private void updateCameraRotation(long ticks) {
         cameraPitch += ticks - lastRotationTick;
         lastRotationTick = ticks;
     }
 
-    private RenderResult drawWorld(Minecraft minecraft, Block block, int blockX, int blockY, int blockZ) {
+    private RenderResult drawWorld(Minecraft minecraft, Block block, MovingObjectPosition target,
+        TileEntity tileEntity) {
         GL11.glEnable(GL11.GL_CULL_FACE);
         GL11.glEnable(GL12.GL_RESCALE_NORMAL);
         RenderHelper.disableStandardItemLighting();
@@ -184,10 +220,10 @@ public class WdmlaBlockFramebufferRenderer {
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_ALPHA_TEST);
 
-        boolean blockRendered = renderBlockPasses(minecraft, block, blockX, blockY, blockZ);
+        boolean blockRendered = renderBlockPasses(minecraft, block, target.blockX, target.blockY, target.blockZ);
         RenderHelper.enableStandardItemLighting();
         GL11.glEnable(GL11.GL_LIGHTING);
-        boolean tileEntityRendered = renderTileEntityPasses(minecraft, blockX, blockY, blockZ);
+        boolean tileEntityRendered = renderTileEntityPasses(tileEntity);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glDisable(GL11.GL_BLEND);
         GL11.glDepthMask(true);
@@ -230,8 +266,7 @@ public class WdmlaBlockFramebufferRenderer {
         }
     }
 
-    private boolean renderTileEntityPasses(Minecraft minecraft, int blockX, int blockY, int blockZ) {
-        TileEntity tileEntity = minecraft.theWorld.getTileEntity(blockX, blockY, blockZ);
+    private boolean renderTileEntityPasses(TileEntity tileEntity) {
         TileEntityRendererDispatcher dispatcher = TileEntityRendererDispatcher.instance;
         if (tileEntity == null || !dispatcher.hasSpecialRenderer(tileEntity)) return false;
 
@@ -241,7 +276,8 @@ public class WdmlaBlockFramebufferRenderer {
             AccessorForgeHooksClient.circulationWailaHud$setWorldRenderPass(pass);
             setDefaultPassRenderState(pass);
             if (tileEntity.shouldRenderInPass(pass)) {
-                dispatcher.renderTileEntityAt(tileEntity, blockX, blockY, blockZ, 0.0F);
+                dispatcher
+                    .renderTileEntityAt(tileEntity, tileEntity.xCoord, tileEntity.yCoord, tileEntity.zCoord, 0.0F);
                 rendered = true;
             }
         }

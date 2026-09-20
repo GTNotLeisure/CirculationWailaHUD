@@ -12,7 +12,8 @@ public class HudLayoutEngine {
 
     private final WailaRowRenderer rowRenderer = new WailaRowRenderer();
 
-    public HudLayout layout(TooltipSnapshot snapshot, HudTheme theme, HudSettings settings) {
+    public HudLayout layout(TooltipSnapshot snapshot, HudTheme theme, HudSettings settings,
+        HudFontMetrics fontMetrics) {
         int pageCapacity = settings.maxLinesPerPage();
 
         List<HudPage> pages = new ArrayList<>();
@@ -25,11 +26,12 @@ public class HudLayoutEngine {
             pages.add(
                 rowRenderer.createPage(
                     snapshot.lines()
-                        .subList(start, end)));
+                        .subList(start, end),
+                    fontMetrics));
         }
 
         if (pages.isEmpty()) {
-            pages.add(rowRenderer.createPage(Collections.emptyList()));
+            pages.add(rowRenderer.createPage(Collections.emptyList(), fontMetrics));
         }
 
         int contentWidth = resolveContentWidth(pages, theme, settings);
@@ -39,7 +41,7 @@ public class HudLayoutEngine {
         }
 
         int navigationHeight = pages.size() > 1
-            ? Minecraft.getMinecraft().fontRenderer.FONT_HEIGHT + theme.navigationGap()
+            ? fontMetrics.rowHeight(Minecraft.getMinecraft().fontRenderer.FONT_HEIGHT) + theme.navigationGap()
             : 0;
         int frameHeight = Math
             .max(theme.frameHeight(), theme.contentY() + contentHeight + navigationHeight + theme.bottomPadding());

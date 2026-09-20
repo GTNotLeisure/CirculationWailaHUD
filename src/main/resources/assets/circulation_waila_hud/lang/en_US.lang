@@ -2,6 +2,7 @@ key.categories.circulation_waila_hud=Circulation Waila HUD
 key.circulation_waila_hud.next_page=Next Waila HUD Page
 
 circulation_waila_hud.navigation.page=Page %s/%s [%s]
+circulation_waila_hud.navigation.unbound=Unbound
 
 circulation_waila_hud.config.hud=HUD
 circulation_waila_hud.config.hud.enabled=Enable Custom HUD

@@ -14,6 +14,7 @@ import com.circulation.wailahud.hud.HudController;
 import com.circulation.wailahud.theme.HudThemeProvider;
 
 import cpw.mods.fml.client.registry.ClientRegistry;
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.InputEvent;
@@ -29,6 +30,9 @@ public class ClientProxy extends CommonProxy implements IResourceManagerReloadLi
     public void preInit(FMLPreInitializationEvent event) {
         ClientRegistry.registerKeyBinding(NEXT_PAGE);
         MinecraftForge.EVENT_BUS.register(this);
+        FMLCommonHandler.instance()
+            .bus()
+            .register(this);
 
         IResourceManager resourceManager = Minecraft.getMinecraft()
             .getResourceManager();
@@ -39,6 +43,15 @@ public class ClientProxy extends CommonProxy implements IResourceManagerReloadLi
 
     @SubscribeEvent
     public void onKeyInput(InputEvent.KeyInputEvent event) {
+        advancePageIfPressed();
+    }
+
+    @SubscribeEvent
+    public void onMouseInput(InputEvent.MouseInputEvent event) {
+        advancePageIfPressed();
+    }
+
+    private void advancePageIfPressed() {
         while (NEXT_PAGE.isPressed()) {
             HudController.instance()
                 .advancePage();
@@ -54,7 +67,9 @@ public class ClientProxy extends CommonProxy implements IResourceManagerReloadLi
     @Override
     public void onResourceManagerReload(IResourceManager resourceManager) {
         HudThemeProvider.instance()
-            .reload(resourceManager);
+            .reload(
+                Minecraft.getMinecraft()
+                    .getResourcePackRepository());
         HudController.instance()
             .clear();
     }

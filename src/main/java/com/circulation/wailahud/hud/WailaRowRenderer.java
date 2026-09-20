@@ -1,5 +1,6 @@
 package com.circulation.wailahud.hud;
 
+import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,7 +17,7 @@ import mcp.mobius.waila.overlay.Tooltip;
 
 public class WailaRowRenderer {
 
-    public HudPage createPage(List<String> sourceLines) {
+    public HudPage createPage(List<String> sourceLines, HudFontMetrics fontMetrics) {
         if (sourceLines.isEmpty()) return new HudPage(null, Collections.emptyList(), 0);
 
         Tooltip tooltip = new Tooltip(sourceLines, false);
@@ -24,48 +25,58 @@ public class WailaRowRenderer {
         IWailaCommonAccessor wailaAccessor = tooltipAccessor.circulationWailaHud$getAccessor();
         Map<Integer, List<AccessorTooltipRenderable>> primary = new TreeMap<>();
         Map<Integer, List<AccessorTooltipRenderable>> secondary = new TreeMap<>();
-        Map<Integer, Integer> contentWidths = new TreeMap<>();
-        collect(tooltipAccessor.circulationWailaHud$getElements(), primary, contentWidths, wailaAccessor);
-        collect(tooltipAccessor.circulationWailaHud$getElements2nd(), secondary, contentWidths, wailaAccessor);
+        Map<Integer, Dimension> contentSizes = new TreeMap<>();
+        collect(tooltipAccessor.circulationWailaHud$getElements(), primary, contentSizes, wailaAccessor);
+        collect(tooltipAccessor.circulationWailaHud$getElements2nd(), secondary, contentSizes, wailaAccessor);
 
         Set<Integer> positions = new TreeSet<>();
         positions.addAll(primary.keySet());
         positions.addAll(secondary.keySet());
         List<Integer> rowPositions = new ArrayList<>(positions);
         List<HudRow> rows = new ArrayList<>();
-        int contentHeight = tooltipAccessor.circulationWailaHud$getRenderableHeight();
         int displayY = 0;
         for (int index = 0; index < rowPositions.size(); index++) {
             int y = rowPositions.get(index);
-            int nextY = index + 1 < rowPositions.size() ? rowPositions.get(index + 1) : contentHeight;
-            int rowHeight = Math.max(14, nextY - y);
-            int rowWidth = contentWidths.getOrDefault(y, 0);
+            Dimension size = contentSizes.get(y);
+            int contentHeight = size.height;
+            if (index + 1 < rowPositions.size()) {
+                contentHeight = Math.max(contentHeight, rowPositions.get(index + 1) - y - 2);
+            }
+            int rowHeight = fontMetrics.rowHeight(contentHeight);
             rows.add(
-                new HudRow(y, displayY, rowHeight, rowWidth, immutable(primary.get(y)), immutable(secondary.get(y))));
+                new HudRow(
+                    y,
+                    displayY,
+                    rowHeight,
+                    size.width,
+                    fontMetrics.contentOffset(contentHeight, rowHeight),
+                    immutable(primary.get(y)),
+                    immutable(secondary.get(y))));
             displayY += rowHeight;
         }
 
-        return new HudPage(wailaAccessor, Collections.unmodifiableList(rows), Math.max(contentHeight, displayY));
+        return new HudPage(wailaAccessor, Collections.unmodifiableList(rows), displayY);
     }
 
     public void draw(HudRow row, boolean secondPass, int x, int y, IWailaCommonAccessor accessor) {
         List<AccessorTooltipRenderable> renderables = secondPass ? row.secondary() : row.primary();
         for (AccessorTooltipRenderable renderable : renderables) {
-            renderable.circulationWailaHud$draw(accessor, x, y + row.displayY() - row.y());
+            renderable.circulationWailaHud$draw(accessor, x, y + row.displayY() + row.contentOffsetY() - row.y());
         }
     }
 
     private void collect(List<Object> source, Map<Integer, List<AccessorTooltipRenderable>> destination,
-        Map<Integer, Integer> contentWidths, IWailaCommonAccessor accessor) {
+        Map<Integer, Dimension> contentSizes, IWailaCommonAccessor accessor) {
         for (Object element : source) {
             AccessorTooltipRenderable renderable = (AccessorTooltipRenderable) element;
             int y = renderable.circulationWailaHud$getPosition().y;
-            int width = renderable.circulationWailaHud$getPosition().x
-                + renderable.circulationWailaHud$getSize(accessor).width;
+            Dimension size = renderable.circulationWailaHud$getSize(accessor);
+            int width = renderable.circulationWailaHud$getPosition().x + size.width;
             List<AccessorTooltipRenderable> row = destination.computeIfAbsent(y, k -> new ArrayList<>());
             row.add(renderable);
-            contentWidths
-                .compute(y, (k, previousWidth) -> previousWidth == null ? width : Math.max(previousWidth, width));
+            Dimension rowSize = contentSizes.computeIfAbsent(y, k -> new Dimension());
+            rowSize.width = Math.max(rowSize.width, width);
+            rowSize.height = Math.max(rowSize.height, size.height);
         }
     }
 

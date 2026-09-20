@@ -37,16 +37,26 @@ public record TooltipSnapshot(List<String> lines, ItemStack stack, boolean hasIc
             linesHash = 31 * linesHash + joinedLineHash(columns);
         }
         int hash = linesHash;
-        hash = 31 * hash + System.identityHashCode(accessor.circulationWailaHud$getStack());
+        hash = 31 * hash + stackHash(accessor.circulationWailaHud$getStack());
         hash = 31 * hash + Boolean.hashCode(accessor.circulationWailaHud$hasIcon());
         return hash;
     }
 
     public int contentHash() {
         int hash = lines.hashCode();
-        hash = 31 * hash + System.identityHashCode(stack);
+        hash = 31 * hash + stackHash(stack);
         hash = 31 * hash + Boolean.hashCode(hasIcon);
         return hash;
+    }
+
+    private static int stackHash(ItemStack stack) {
+        if (stack == null) return 0;
+        // Waila can create equivalent stacks on every tick.
+        int hash = System.identityHashCode(stack.getItem());
+        hash = 31 * hash + stack.getItemDamage();
+        hash = 31 * hash + stack.stackSize;
+        return 31 * hash + (stack.hasTagCompound() ? stack.getTagCompound()
+            .hashCode() : 0);
     }
 
     private static int joinedLineHash(List<String> columns) {

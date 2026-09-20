@@ -1,6 +1,6 @@
 package com.circulation.wailahud.theme;
 
-import net.minecraft.client.resources.IResourceManager;
+import net.minecraft.client.resources.ResourcePackRepository;
 import net.minecraft.util.ResourceLocation;
 
 public class HudThemeProvider {
@@ -39,8 +39,8 @@ public class HudThemeProvider {
         return generation;
     }
 
-    public void reload(IResourceManager resourceManager) {
-        theme = chromaticThemeReader.read(resourceManager, DEFAULT_THEME);
+    public void reload(ResourcePackRepository repository) {
+        theme = chromaticThemeReader.read(repository, DEFAULT_THEME);
         generation++;
     }
 }

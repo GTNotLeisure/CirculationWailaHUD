@@ -1,16 +1,20 @@
 package com.circulation.wailahud.hud;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.item.ItemStack;
 import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.MovingObjectPosition.MovingObjectType;
+import net.minecraft.world.World;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 
 import com.circulation.wailahud.config.ModConfig;
+import com.circulation.wailahud.mixins.late.waila.AccessorTooltip;
 import com.circulation.wailahud.theme.HudTheme;
 import com.circulation.wailahud.theme.HudThemeProvider;
 
+import mcp.mobius.waila.api.IWailaCommonAccessor;
 import mcp.mobius.waila.api.impl.ConfigHandler;
 import mcp.mobius.waila.overlay.OverlayRenderer;
-import mcp.mobius.waila.overlay.RayTracing;
 import mcp.mobius.waila.overlay.Tooltip;
 
 public class HudController {
@@ -24,8 +28,10 @@ public class HudController {
     private TooltipSnapshot snapshot;
     private HudSettings settings;
     private HudTheme theme;
+    private HudFontMetrics fontMetrics;
     private CacheKey cacheKey;
     private TargetKey targetKey;
+    private MovingObjectPosition displayTarget;
     private int pageIndex;
 
     public static HudController instance() {
@@ -33,98 +39,133 @@ public class HudController {
     }
 
     public boolean renderIfEnabled(Tooltip tooltip) {
-        if (!ModConfig.HUD.enabled || !isEligibleTarget()) return false;
-        MovingObjectPosition target = RayTracing.instance()
-            .getTarget();
-        TargetKey currentTarget = TargetKey.create(target);
+        // The world HUD owns presentation; the late overlay must not republish tick data.
+        return ModConfig.HUD.enabled;
+    }
+
+    public void updateTooltip(Tooltip tooltip, MovingObjectPosition target) {
+        World world = Minecraft.getMinecraft().theWorld;
+        if (!ModConfig.HUD.enabled || world == null || tooltip == null || !isEligibleTarget(tooltip, target)) {
+            resetDisplay();
+            return;
+        }
+        TargetKey currentTarget = TargetKey.create(world, target);
+        IWailaCommonAccessor accessor = ((AccessorTooltip) tooltip).circulationWailaHud$getAccessor();
+        if (accessor.getWorld() != world || accessor.getPosition() == null
+            || !TargetKey.create(world, accessor.getPosition())
+                .equals(currentTarget)) {
+            resetDisplay();
+            return;
+        }
+        boolean targetChanged = !currentTarget.equals(targetKey);
         int tooltipContentHash = TooltipSnapshot.contentHash(tooltip);
         HudSettings hudSettings = HudSettings.fromConfig(ModConfig.HUD);
+        HudFontMetrics currentFontMetrics = HudFontMetrics.current();
         HudThemeProvider themeProvider = HudThemeProvider.instance();
         HudTheme hudTheme = themeProvider.current();
-        CacheKey newKey = new CacheKey(tooltipContentHash, hudSettings, themeProvider.generation(), currentTarget);
+        CacheKey newKey = new CacheKey(
+            tooltipContentHash,
+            hudSettings,
+            currentFontMetrics,
+            themeProvider.generation(),
+            currentTarget);
         if (!newKey.equals(cacheKey)) {
-            snapshot = TooltipSnapshot.from(tooltip);
-            layout = layoutEngine.layout(snapshot, hudTheme, hudSettings);
+            TooltipSnapshot updatedSnapshot = TooltipSnapshot.from(tooltip);
+            HudLayout updatedLayout = layoutEngine.layout(updatedSnapshot, hudTheme, hudSettings, currentFontMetrics);
+            snapshot = updatedSnapshot;
+            layout = updatedLayout;
             cacheKey = newKey;
-            pageIndex = 0;
         }
-        if (layout == null) return false;
         settings = hudSettings;
         theme = hudTheme;
+        fontMetrics = currentFontMetrics;
         targetKey = currentTarget;
+        displayTarget = target;
+        if (targetChanged) pageIndex = 0;
         pageIndex = Math.min(
             pageIndex,
             layout.pages()
                 .size() - 1);
-        return true;
     }
 
     public void renderWorld(RenderWorldLastEvent event) {
-        MovingObjectPosition currentTarget = RayTracing.instance()
-            .getTarget();
-        if (!ModConfig.HUD.enabled || layout == null
+        if (!ModConfig.HUD.enabled || !OverlayRenderer.isOverlayVisible()
+            || layout == null
             || snapshot == null
             || settings == null
             || theme == null
-            || currentTarget == null
-            || !TargetKey.create(currentTarget)
-                .equals(targetKey))
-            return;
+            || fontMetrics == null
+            || displayTarget == null
+            || targetKey == null) return;
         Minecraft minecraft = Minecraft.getMinecraft();
+        if (minecraft.theWorld != targetKey.world()) {
+            resetDisplay();
+            return;
+        }
         MovingObjectPosition liveTarget = minecraft.objectMouseOver;
-        if (liveTarget == null || !TargetKey.create(liveTarget)
-            .equals(targetKey)) return;
-        long ticks = minecraft.theWorld == null ? 0L : minecraft.theWorld.getTotalWorldTime();
-        worldRenderer.render(
-            layout,
-            layout.pages()
-                .get(pageIndex),
-            theme,
-            settings,
-            liveTarget,
-            event.partialTicks,
-            ticks);
+        if (liveTarget == null || liveTarget.typeOfHit == MovingObjectType.MISS) return;
+        if (displayTarget.typeOfHit == MovingObjectType.ENTITY
+            && (displayTarget.entityHit == null || displayTarget.entityHit.isDead
+                || displayTarget.entityHit.worldObj != minecraft.theWorld))
+            return;
+        // Keep the complete tick snapshot until Waila publishes its replacement.
+        MovingObjectPosition renderTarget = TargetKey.create(minecraft.theWorld, liveTarget)
+            .equals(targetKey) ? liveTarget : displayTarget;
+        long ticks = minecraft.theWorld.getTotalWorldTime();
+        worldRenderer.render(layout, pageIndex, theme, settings, fontMetrics, renderTarget, event.partialTicks, ticks);
     }
 
     public void advancePage() {
-        if (layout != null && layout.pages()
-            .size() > 1)
+        if (ModConfig.HUD.enabled && OverlayRenderer.isOverlayVisible()
+            && displayTarget != null
+            && layout != null
+            && layout.pages()
+                .size() > 1)
             pageIndex = (pageIndex + 1) % layout.pages()
                 .size();
     }
 
     public void clear() {
-        layout = null;
-        snapshot = null;
-        settings = null;
-        theme = null;
-        cacheKey = null;
-        targetKey = null;
-        pageIndex = 0;
+        resetDisplay();
         tooltipFramebuffer.clear();
         worldRenderer.clear();
     }
 
-    private boolean isEligibleTarget() {
-        if (!OverlayRenderer.isOverlayVisible()) return false;
-        MovingObjectPosition target = RayTracing.instance()
-            .getTarget();
-        if (target == null) return false;
-        if (target.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK) return RayTracing.instance()
-            .getTargetStack() != null;
-        return target.typeOfHit == MovingObjectPosition.MovingObjectType.ENTITY && ConfigHandler.instance()
-            .getConfig("general.showents");
+    private void resetDisplay() {
+        layout = null;
+        snapshot = null;
+        settings = null;
+        theme = null;
+        fontMetrics = null;
+        cacheKey = null;
+        targetKey = null;
+        displayTarget = null;
+        pageIndex = 0;
     }
 
-    private record CacheKey(int contentHash, HudSettings settings, int themeGeneration, TargetKey targetKey) {}
+    private boolean isEligibleTarget(Tooltip tooltip, MovingObjectPosition target) {
+        if (!OverlayRenderer.isOverlayVisible()) return false;
+        if (target == null || target.hitVec == null) return false;
+        if (target.typeOfHit == MovingObjectType.BLOCK) {
+            ItemStack stack = ((AccessorTooltip) tooltip).circulationWailaHud$getStack();
+            return stack != null && stack.getItem() != null;
+        }
+        return target.typeOfHit == MovingObjectType.ENTITY && target.entityHit != null
+            && !target.entityHit.isDead
+            && ConfigHandler.instance()
+                .getConfig("general.showents");
+    }
 
-    private record TargetKey(MovingObjectPosition.MovingObjectType type, int first, int second, int third) {
+    private record CacheKey(int contentHash, HudSettings settings, HudFontMetrics fontMetrics, int themeGeneration,
+        TargetKey targetKey) {}
 
-        private static TargetKey create(MovingObjectPosition target) {
-            if (target.typeOfHit == MovingObjectPosition.MovingObjectType.ENTITY && target.entityHit != null) {
-                return new TargetKey(target.typeOfHit, target.entityHit.getEntityId(), 0, 0);
+    private record TargetKey(World world, MovingObjectType type, int first, int second, int third) {
+
+        private static TargetKey create(World world, MovingObjectPosition target) {
+            if (target.typeOfHit == MovingObjectType.ENTITY && target.entityHit != null) {
+                return new TargetKey(world, target.typeOfHit, target.entityHit.getEntityId(), 0, 0);
             }
-            return new TargetKey(target.typeOfHit, target.blockX, target.blockY, target.blockZ);
+            return new TargetKey(world, target.typeOfHit, target.blockX, target.blockY, target.blockZ);
         }
     }
 }

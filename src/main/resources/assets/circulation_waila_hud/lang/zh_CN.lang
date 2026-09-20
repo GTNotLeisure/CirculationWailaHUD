@@ -2,6 +2,7 @@ key.categories.circulation_waila_hud=Circulation Waila HUD
 key.circulation_waila_hud.next_page=Waila HUD 下一页
 
 circulation_waila_hud.navigation.page=第 %s/%s 页 [%s]
+circulation_waila_hud.navigation.unbound=未绑定
 
 circulation_waila_hud.config.hud=HUD
 circulation_waila_hud.config.hud.enabled=启用自定义 HUD

@@ -12,7 +12,11 @@ public enum Mixins implements IMixins {
         .setPhase(Phase.EARLY)),
 
     WAILA(new MixinBuilder("Waila").addRequiredMod(Mods.Waila)
-        .addClientMixins("waila.MixinOverlayRenderer", "waila.AccessorTooltip", "waila.AccessorTooltipRenderable")
+        .addClientMixins(
+            "waila.MixinOverlayRenderer",
+            "waila.MixinWailaTickHandler",
+            "waila.AccessorTooltip",
+            "waila.AccessorTooltipRenderable")
         .setPhase(Phase.LATE));
 
     private final MixinBuilder builder;
